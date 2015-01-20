@@ -21,10 +21,13 @@ package de.minehattan.xmppchat.bot;
 import java.util.Collection;
 import java.util.logging.Level;
 
+import javax.net.ssl.SSLContext;
+
 import org.bukkit.ChatColor;
 import org.jivesoftware.smack.Chat;
 import org.jivesoftware.smack.ChatManager;
 import org.jivesoftware.smack.ChatManagerListener;
+import org.jivesoftware.smack.ConnectionConfiguration;
 import org.jivesoftware.smack.MessageListener;
 import org.jivesoftware.smack.Roster;
 import org.jivesoftware.smack.RosterEntry;
@@ -63,6 +66,9 @@ public class XMPPBot extends ConfigurationBase implements ChatBot {
      * 
      * @param xmppServer
      *            the address of the XMPP server
+     * @param sslContext
+     *            the SSLContext used to authenticate the connection to the XMMP
+     *            server
      * @param username
      *            the name of the XMPP user
      * @param password
@@ -76,8 +82,8 @@ public class XMPPBot extends ConfigurationBase implements ChatBot {
      * @throws BotException
      *             if no connection to the server could be established
      */
-    public XMPPBot(String xmppServer, String username, String password, String resource, final String botResponse,
-            String statusMessage) throws BotException {
+    public XMPPBot(String xmppServer, SSLContext sslContext, String username, String password, String resource,
+            final String botResponse, String statusMessage) throws BotException {
         listener = new MessageListener() {
             @Override
             public void processMessage(Chat chat, Message message) {
@@ -97,11 +103,14 @@ public class XMPPBot extends ConfigurationBase implements ChatBot {
             }
         };
 
+        ConnectionConfiguration conf = new ConnectionConfiguration(xmppServer);
+        conf.setCustomSSLContext(sslContext);
+
         // set MD5 as first security protocol to check
         SASLAuthentication.supportSASLMechanism("DIGEST-MD5", 0);
 
         // connect to the server - may fail if username/password etc. are wrong
-        connection = new XMPPTCPConnection(xmppServer);
+        connection = new XMPPTCPConnection(conf);
         try {
             connection.connect();
             connection.login(username, password, resource);

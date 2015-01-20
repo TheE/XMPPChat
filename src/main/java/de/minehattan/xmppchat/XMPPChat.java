@@ -18,6 +18,8 @@
  */
 package de.minehattan.xmppchat;
 
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -25,6 +27,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.logging.Level;
+
+import javax.annotation.Nullable;
+import javax.net.ssl.SSLContext;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.text.StrBuilder;
@@ -54,6 +59,7 @@ import de.minehattan.xmppchat.bot.BotException;
 import de.minehattan.xmppchat.bot.ChatBot;
 import de.minehattan.xmppchat.bot.XMPPBot;
 import de.minehattan.xmppchat.bot.ChatBot.UserStatus;
+import eu.geekplace.javapinning.JavaPinning;
 
 /**
  * The central entry-point for XMPPChat.
@@ -81,11 +87,19 @@ public class XMPPChat extends BukkitComponent implements Listener {
         config = configure(new LocalConfiguration());
         registerCommands(TopCommands.class);
 
+        SSLContext context = getContext();
+        if (context == null) {
+            disable();
+            return;
+        }
+
         try {
-            chatBot = new XMPPBot(config.xmppServer, config.xmppUsername, config.xmppPassword, config.xmppResource, config.messages.botResponse, config.xmppStatus);
+            chatBot = new XMPPBot(config.xmppServer, context, config.xmppUsername, config.xmppPassword,
+                    config.xmppResource, config.messages.botResponse, config.xmppStatus);
         } catch (BotException e) {
             CommandBook.logger().log(Level.SEVERE, "Failed to connect to the XMPP server, disabling the component.", e);
             disable();
+            return;
         }
 
         reloadContacts();
@@ -104,14 +118,58 @@ public class XMPPChat extends BukkitComponent implements Listener {
         configure(config);
 
         chatBot.closeConnection();
+
+        SSLContext context = getContext();
+        if (context == null) {
+            disable();
+            return;
+        }
+
         try {
-            chatBot = new XMPPBot(config.xmppServer, config.xmppUsername, config.xmppPassword, config.xmppResource, config.messages.botResponse, config.xmppStatus);
+            chatBot = new XMPPBot(config.xmppServer, context, config.xmppUsername, config.xmppPassword,
+                    config.xmppResource, config.messages.botResponse, config.xmppStatus);
         } catch (BotException e) {
             CommandBook.logger().log(Level.SEVERE, "Failed to connect to the XMPP server, disabling the component.", e);
             disable();
         }
 
         reloadContacts();
+    }
+
+    /**
+     * Returns the applicable SSLContext. May return {@code null} if no default
+     * context is available.
+     * 
+     * @return the SSLContext
+     */
+    @Nullable
+    private SSLContext getContext() {
+        SSLContext sslContext;
+        try {
+            sslContext = SSLContext.getDefault();
+        } catch (NoSuchAlgorithmException e) {
+            // TODO although this is unlikely to happen, returning null is ugly!
+            CommandBook.logger().log(Level.SEVERE, "Failed to get default SSL context.", e);
+            return null;
+        }
+
+        if (config.xmppSSLUseSelfSigned) {
+
+            try {
+                sslContext = JavaPinning.forPin(config.xmppSSLCertificatePin);
+            } catch (KeyManagementException e) {
+                CommandBook.logger().log(Level.SEVERE,
+                        "Failed to use configured certificate pin, using the default SSL context instead.", e);
+            } catch (NoSuchAlgorithmException e) {
+                CommandBook
+                        .logger()
+                        .log(Level.SEVERE,
+                                "Failed to use configured certificate pin due to an unsupported algorithm, using the default SSL context instead.",
+                                e);
+            }
+        }
+
+        return sslContext;
     }
 
     /**
@@ -141,19 +199,23 @@ public class XMPPChat extends BukkitComponent implements Listener {
         @Setting("contacts")
         private Map<String, List<String>> rawContacts = createDefaultContacts();
         @Setting("settings.notifyOffline")
-        private boolean notifyOffline;
+        private boolean notifyOffline = true;
         @Setting("settings.manageBuddyList")
         private boolean manageBuddyList;
         @Setting("xmpp.server")
-        private String xmppServer;
+        private String xmppServer = "localhost";
+        @Setting("xmpp.ssl.use-self-signed")
+        private boolean xmppSSLUseSelfSigned;
+        @Setting("xmpp.ssl.certificate-pin")
+        private String xmppSSLCertificatePin = "SHA256:e3b1812d945da1a2a2c5fa28029d2fe34c7c4142fb098f5cfedff1ff20e98781";
         @Setting("xmpp.username")
-        private String xmppUsername;
+        private String xmppUsername = "username";
         @Setting("xmpp.password")
-        private String xmppPassword;
+        private String xmppPassword = "password";
         @Setting("xmpp.resource")
-        private String xmppResource;
+        private String xmppResource = "XMPPChat";
         @Setting("xmpp.status")
-        private String xmppStatus;
+        private String xmppStatus = "Available.";
 
         /**
          * All messages used by the component.
