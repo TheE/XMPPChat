@@ -154,8 +154,6 @@ public class XMPPBot extends ConfigurationBase implements ChatBot {
     private void setPresence(String statusMessage) throws NotConnectedException {
         Presence presence = new Presence(Presence.Type.available);
         presence.setStatus(statusMessage);
-        presence.setPriority(24);
-        presence.setMode(Presence.Mode.available);
         connection.sendPacket(presence);
     }
 
@@ -182,7 +180,7 @@ public class XMPPBot extends ConfigurationBase implements ChatBot {
                     try {
                         roster.removeEntry(entry);
                     } catch (Exception e) {
-                        throw new BotException("Failed to remove '" + entry + "' from the bddy list.", e);
+                        throw new BotException("Failed to remove '" + entry + "' from the buddy list.", e);
                     }
                 }
             }
